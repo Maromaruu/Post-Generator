@@ -483,25 +483,11 @@
     btn.disabled = false;
     render();
   });
-  // ---------- layout: square preview, both cards the same height, the panel scrolls inside ----------
-  function lockBoxHeights() {
-    const panel = document.querySelector('.panel');
-    const wrap = document.querySelector('.canvas-wrap');
-    const stage = document.querySelector('.canvas-stage');
-    panel.style.height = '';
-    stage.style.height = '';
-    if (window.matchMedia('(max-width: 800px)').matches) return;
-    stage.style.height = Math.round(stage.getBoundingClientRect().width) + 'px'; // square stage; the portrait post fits inside it
-    panel.style.height = wrap.offsetHeight + 'px';
-  }
-  let resizeTimer = null;
-  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(lockBoxHeights, 200); });
+  // layout is all CSS: the page fills the window, the preview scales to the space left (index.html)
 
   // ---------- boot ----------
   buildStrip();
   buildFields();
-  lockBoxHeights();
-  setTimeout(lockBoxHeights, 350);
   const fonts = document.fonts
     ? Promise.all([document.fonts.load('400 22px Geist'), document.fonts.load('500 72px Geist'), document.fonts.load('700 220px Geist')]).catch(() => {})
     : Promise.resolve();
