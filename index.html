@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aisocnews post generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- the banner generator's stylesheet, unchanged -->
+<link rel="stylesheet" href="css/system.css">
+<style>
+  /* Additions for this app. Same tokens, sizes and radii as the design system; nothing new invented. */
+  /* the fields scroll inside the card; the info line stays pinned to its bottom, full width */
+  .panel { display: flex; flex-direction: column; overflow: hidden; }
+  .panel-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--raised) transparent; margin-right: -8px; padding-right: 8px; }
+  .panel-foot { flex: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .panel-foot .size-info { display: block; line-height: 1.45; }
+  .field textarea {
+    width: 100%; min-height: 72px; padding: 9px 12px; border: 1px solid var(--input-line); border-radius: var(--radius-md);
+    font-family: var(--sans); font-size: 13px; line-height: 1.45; letter-spacing: inherit; background: var(--muted); color: var(--ink);
+    resize: vertical; display: block;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+  .field textarea::placeholder { color: var(--faint); }
+  .field textarea:hover { border-color: var(--line-strong); }
+  .field textarea:focus { outline: none; border-color: rgba(255,255,255,0.28); box-shadow: 0 0 0 3px rgba(255,255,255,0.06); }
+  .panel .status { text-align: left; margin-top: 8px; }
+  .panel .hint ul { margin: 0; padding-left: 14px; }
+  .panel .hint li + li { margin-top: 4px; }
+  .section-rule { height: 1px; background: var(--line); margin: 4px 0 16px; }
+  /* fold bodies: nested fields sit a little tighter than top-level ones */
+  .key-fold > .fold-body { padding: 4px 0 2px 13px; border-left: 1px solid var(--line); margin-left: 2px; }
+  .key-fold > .fold-body .field { margin-bottom: 12px; }
+  .key-fold > .fold-body .field:last-child { margin-bottom: 0; }
+  .key-fold-summary .fold-note { color: var(--subtle); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px; }
+  /* logo row: the tile as it appears on the post, and an upload button */
+  .logo-row { display: flex; align-items: center; gap: 8px; }
+  .logo-tile { width: 40px; height: 40px; flex: none; border-radius: var(--radius-sm); background: #e2e3eb; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 13px; font-weight: 500; color: rgba(33,34,37,0.7); }
+  .logo-tile img { width: 75%; height: 75%; object-fit: contain; }
+  .logo-row .upload-btn { flex: 1; }
+  .vendor-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .vendor-row input[type=text] { flex: 1; min-width: 0; }
+  .vendor-row .logo-tile { width: 36px; height: 36px; cursor: pointer; }
+  /* quiet text button next to the accent download button */
+  .quiet-btn {
+    height: 36px; padding: 0 14px; border-radius: var(--radius-md); border: 1px solid var(--input-line); background: var(--card);
+    font-family: var(--sans); font-weight: 500; font-size: 13px; letter-spacing: -0.005em; color: var(--muted-foreground); cursor: pointer;
+    transition: color 0.15s var(--ease), background-color 0.15s var(--ease), border-color 0.15s var(--ease), opacity 0.15s var(--ease);
+  }
+  .quiet-btn:hover:not(:disabled) { border-color: var(--line-strong); background: rgba(39,39,42,0.7); color: var(--ink); }
+  .quiet-btn:active:not(:disabled) { background: var(--raised); }
+  .quiet-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .quiet-btn:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
+  .ctrl-actions { flex-direction: row; align-items: center; }
+  .ctrl-left { flex: 1; min-width: 0; justify-content: center; gap: 4px; }
+  .title-warning ul { margin: 0; padding-left: 14px; }
+  /* post picker: live thumbnails of the posts in the current category */
+  .head { margin-bottom: 8px; }
+  .post-strip { display: flex; gap: 8px; margin: 0 -2px 18px; padding: 2px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--raised) transparent; }
+  .post-thumb {
+    flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 96px; padding: 10px 10px 8px;
+    border: 0; border-radius: var(--radius-md); background: var(--card); box-shadow: inset 0 0 0 1px var(--card-line);
+    font-family: var(--sans); font-size: 12px; font-weight: 500; letter-spacing: -0.005em; color: var(--muted-foreground); cursor: pointer;
+    transition: color 0.15s var(--ease), background-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  }
+  .post-thumb canvas { display: block; height: 72px; width: auto; border-radius: 6px; background: var(--raised); box-shadow: 0 0 0 1px var(--line-soft); }
+  .post-thumb span { white-space: nowrap; }
+  .post-thumb:hover:not(.active) { background: rgba(39,39,42,0.7); color: var(--ink); }
+  .post-thumb.active { background: #3f3f46; color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .post-thumb:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
+  #banner { max-width: 100%; max-height: 100%; width: auto; height: auto; }
+</style>
+</head>
+<body>
+<div id="app-root">
+  <div class="wrap">
+    <div class="head">
+      <nav class="pill-nav" id="templateTabs" data-layout="split" data-items="plain" aria-label="Post category"></nav>
+      <span id="canvasSizeLabel">1080 &times; 1080 &middot; PNG</span>
+    </div>
+    <div class="post-strip" id="postStrip" role="tablist" aria-label="Post"></div>
+    <div class="grid">
+      <div class="panel">
+        <div class="panel-body">
+        <div class="field">
+          <label for="url">aisocnews.com link</label>
+          <div class="search-row">
+            <input type="text" id="url" placeholder="https://aisocnews.com/?days=30" autocomplete="off" spellcheck="false" />
+            <button class="gen" id="fetchBtn">Read page</button>
+          </div>
+          <div class="hint" id="updated" hidden></div>
+          <div class="status" id="status"></div>
+        </div>
+        <div class="section-rule"></div>
+        <div id="fields"></div>
+        <input type="file" id="uploadInput" accept="image/*" style="display:none" />
+        </div>
+        <div class="panel-foot"><span class="size-info" id="sourceInfo">Showing the sample copy from Figma. Paste a link to fill the posts.</span></div>
+      </div>
+      <div class="canvas-wrap">
+        <div class="canvas-stage"><canvas id="banner" width="1080" height="1080"></canvas></div>
+        <div class="controls-grid">
+          <div class="ctrl-left">
+            <div class="title-warning" id="warnings" style="display:none;"></div>
+          </div>
+          <div class="ctrl-actions">
+            <button type="button" class="quiet-btn" id="dlAllBtn">Download all</button>
+            <button type="button" class="dl-btn" id="dlBtn">Download PNG</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="page-footer">
+      <span class="copyright">&copy; 2026 Lunch Money</span>
+      <span class="made-by">Made by Lunch Money <img src="assets/lunch-money.svg" class="footer-logo" alt="Lunch Money logo" /></span>
+    </div>
+  </div>
+</div>
+<script src="js/pillnav.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/templates-rankings.js"></script>
+<script src="js/templates-portrait.js"></script>
+<script src="js/templates-square.js"></script>
+<script src="js/templates-arc.js"></script>
+<script src="js/extract.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
