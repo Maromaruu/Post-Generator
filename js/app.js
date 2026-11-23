@@ -277,6 +277,17 @@
     debates: ['cards.chip'],                       // the topic chip on each card
     casestudy: ['steps.text', 'steps.label']       // the three steps of the diagram
   };
+  // "Edit all values by hand" lifts that lock: every value gets a field, the header lines included.
+  // It is for building a post without reading the site, or correcting what was read.
+  const HEAD_FIELDS = [T('context', 'Header label'), T('title', 'Title'), T('title2', 'Title, second line'), T('subtitle', 'Subtitle', { area: true })];
+  let editAll = false;
+  try { editAll = localStorage.getItem('editAll') === '1'; } catch (e) { /* storage blocked: stay locked */ }
+  $('editAll').checked = editAll;
+  $('editAll').addEventListener('change', () => {
+    editAll = $('editAll').checked;
+    try { localStorage.setItem('editAll', editAll ? '1' : '0'); } catch (e) { /* not remembered */ }
+    buildFields();
+  });
   function companyFields(fields, path) {
     const out = [], open = WRITTEN[current] || [];
     fields.forEach((f) => {
@@ -294,7 +305,8 @@
   function buildFields() {
     const root = $('fields'), data = posts[current];
     root.replaceChildren();
-    companyFields(FIELDS[current] || tplOf(current).fields || []).forEach((f) => {
+    const all = FIELDS[current] || tplOf(current).fields || [];
+    (editAll ? HEAD_FIELDS.filter((f) => typeof data[f.key] === 'string').concat(all) : companyFields(all)).forEach((f) => {
       if (f.type === 'text') root.appendChild(textField(f, data, (key) => { if (key === 'name') relinkLogo(data, root._tile); }));
       else if (f.type === 'logo') { const node = logoField(data); root._tile = node._tile; root.appendChild(node); }
       else if (f.type === 'ranks') root.appendChild(ranksField());
@@ -393,11 +405,59 @@
     s.textContent = message || '';
     s.classList.toggle('error', !!error);
   }
-  async function fetchPage(url) {
-    const r = await fetch('/api/fetch?url=' + encodeURIComponent(url));
+  // The site sends no CORS headers, so a browser cannot read it directly. Ways to get a page, in order:
+  // this tool's own server (node server.js), a relay set in index.html (window.POST_RELAY), then a
+  // direct read (works only if the site ever allows it). The first way that works is reused.
+  const RELAY = String(window.POST_RELAY || '').trim();
+  const WAYS = [(u) => 'api/fetch?url=' + encodeURIComponent(u)]
+    .concat(RELAY ? [(u) => RELAY + encodeURIComponent(u)] : [], [(u) => u]);
+  let goodWay = -1;
+  async function getVia(way, url) {
+    const r = await fetch(WAYS[way](url));
+    if (!r.ok) throw new Error('answered ' + r.status);
     const body = await r.text();
-    if (!r.ok) throw new Error(body || 'The page could not be read.');
+    if (Extract.describePage(body).kind === 'unknown') throw new Error('not the aisocnews.com page');
     return body;
+  }
+  async function fetchPage(url) {
+    const order = goodWay >= 0 ? [goodWay] : WAYS.map((_, i) => i);
+    for (const way of order) {
+      try { const body = await getVia(way, url); goodWay = way; return body; } catch (e) { /* try the next way */ }
+    }
+    throw new Error('UNREACHABLE');
+  }
+  const UNREACHABLE = 'This copy of the tool cannot reach aisocnews.com: the site only allows that through the tool’s own small server, which is not running here. Use “Load saved pages” below, or turn on “Edit all values by hand”.';
+
+  // Fill every post from the pages read: { baseHtml, euHtml, reportHtml, days }.
+  function applyPages(got, first, stay) {
+    const basePage = Extract.readPage(got.baseHtml);
+    const euPage = got.euHtml ? Extract.readPage(got.euHtml) : null;
+    const days = got.days || 30;
+    const built = Extract.build(basePage, euPage, days, got.reportHtml ? Extract.readArcMap(got.reportHtml) : null);
+    if (!Object.keys(built.found).length) throw new Error('No post data was found on that page.');
+    filled = built.found;
+    // a view that was not supplied is not "missing from the page": say which one to add instead
+    const missing = [];
+    if (!got.euHtml) missing.push('the European vendors view (for Europe)');
+    if (!got.reportHtml) missing.push('the Analyst View (for the full Maturity arc)');
+    posts = built.posts;
+    page = { base: basePage, europe: euPage, days, logo: Extract.makeLogoResolver([basePage, euPage]) };
+    topStart = +posts.toplist.rows[0].rank || 6;
+    singleRank = +posts.top1.rank || 1;
+    stripGroup = null; // new data: redraw the thumbnails
+    show(stay ? current : first);
+    // when the site last updated its data, and when this tool read it
+    const now = new Date(), two = (n) => String(n).padStart(2, '0');
+    const siteDate = basePage.generated ? Extract.fullDate(basePage.generated) + (basePage.generatedTime ? ', ' + basePage.generatedTime : '') : '';
+    $('updated').textContent = (siteDate ? `Site data last updated ${siteDate}. ` : '') + `Read ${Extract.fullDate(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())))}, ${two(now.getHours())}:${two(now.getMinutes())}.`;
+    $('updated').hidden = false;
+    // say something only when a post could not be filled and still shows the Figma sample copy
+    const kept = TEMPLATES.filter((t) => !built.found[t.key]).map((t) => t.label);
+    const parts = [];
+    if (kept.length) parts.push(`Not found on the page, still showing sample copy: ${kept.join(', ')}.`);
+    if (got.saved && missing.length) parts.push(`Not loaded: ${missing.join(' and ')}.`);
+    setStatus(parts.join(' '), kept.length > 0);
+    $('sourceInfo').textContent = `Filled from ${got.saved ? 'saved aisocnews.com pages' : 'aisocnews.com'}, last ${days} days. Check each post before exporting.`;
   }
   // opts.stay keeps the current post on screen instead of jumping to the one the link points at
   async function readLink(opts) {
@@ -414,39 +474,41 @@
     btn.disabled = true;
     setStatus('Reading the page…');
     try {
-      // the European ranking lives on its own view of the same page
-      // (and the full maturity map only on the report view)
-      const [baseHtml, euHtml, reportHtml] = await Promise.all([
-        fetchPage(base), fetchPage(base + '&region=europe').catch(() => ''),
+      // the dashboard first (it also settles which way of reading works), then the European
+      // ranking and the report view, which holds the full maturity map
+      const baseHtml = await fetchPage(base);
+      const [euHtml, reportHtml] = await Promise.all([
+        fetchPage(base + '&region=europe').catch(() => ''),
         fetchPage(`https://aisocnews.com/?days=${days}&view=report`).catch(() => '')
       ]);
-      const basePage = Extract.readPage(baseHtml);
-      const euPage = euHtml ? Extract.readPage(euHtml) : null;
-      const built = Extract.build(basePage, euPage, days, reportHtml ? Extract.readArcMap(reportHtml) : null);
-      filled = built.found;
-      const count = Object.keys(built.found).length;
-      if (!count) throw new Error('No post data was found on that page.');
-      posts = built.posts;
-      page = { base: basePage, europe: euPage, days, logo: Extract.makeLogoResolver([basePage, euPage]) };
-      topStart = +posts.toplist.rows[0].rank || 6;
-      singleRank = +posts.top1.rank || 1;
-      stripGroup = null; // new data: redraw the thumbnails
-      show(stay ? current : Extract.pick(url));
-      // when the site last updated its data, and when this tool read it
-      const now = new Date(), two = (n) => String(n).padStart(2, '0');
-      const siteDate = basePage.generated ? Extract.fullDate(basePage.generated) + (basePage.generatedTime ? ', ' + basePage.generatedTime : '') : '';
-      $('updated').textContent = (siteDate ? `Site data last updated ${siteDate}. ` : '') + `Read ${Extract.fullDate(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())))}, ${two(now.getHours())}:${two(now.getMinutes())}.`;
-      $('updated').hidden = false;
-      // say something only when a post could not be filled and still shows the Figma sample copy
-      const kept = TEMPLATES.filter((t) => !built.found[t.key]).map((t) => t.label);
-      setStatus(kept.length ? `Not found on the page, still showing sample copy: ${kept.join(', ')}.` : '', kept.length > 0);
-      $('sourceInfo').textContent = `Filled from aisocnews.com, last ${days} days. Check each post before exporting.`;
+      applyPages({ baseHtml, euHtml, reportHtml, days }, Extract.pick(url), stay);
     } catch (e) {
-      setStatus(e.message || String(e), true);
+      setStatus(e.message === 'UNREACHABLE' ? UNREACHABLE : (e.message || String(e)), true);
     } finally {
       btn.disabled = false;
     }
   }
+  // Pages saved from the browser (File > Save Page As), for when the site cannot be read from here.
+  $('savedBtn').addEventListener('click', () => { $('savedInput').value = ''; $('savedInput').click(); });
+  $('savedInput').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    try {
+      const got = { saved: true };
+      for (const file of files) {
+        const html = await file.text(), what = Extract.describePage(html);
+        if (what.kind === 'dashboard') { got.baseHtml = html; got.days = what.days || 30; }
+        else if (what.kind === 'europe') got.euHtml = html;
+        else if (what.kind === 'report') got.reportHtml = html;
+      }
+      if (!got.baseHtml) throw new Error(got.euHtml || got.reportHtml
+        ? 'Also load the main aisocnews.com page (All vendors); the other views only add to it.'
+        : 'None of those files is a saved aisocnews.com page.');
+      applyPages(got, current, true);
+    } catch (err) {
+      setStatus(err.message || String(err), true);
+    }
+  });
   $('fetchBtn').addEventListener('click', () => readLink());
   $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') readLink(); });
   // pasting a link reads it straight away

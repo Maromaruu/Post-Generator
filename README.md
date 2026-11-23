@@ -30,6 +30,27 @@ browser cannot read it directly. The server only proxies `aisocnews.com` pages a
 
 Before you paste a link, the tabs show the sample copy from Figma.
 
+## Hosting it online
+
+The tool has to fetch aisocnews.com through a server, because the site does not let a web page on another
+address read it. `node server.js` is that server. On a static host such as GitHub Pages there is no server,
+so reading a link fails there. Three ways around it:
+
+- **Run it locally** with `node server.js`. Nothing else needed.
+- **Add a relay.** `relay/cloudflare-worker.js` is a ready-made one for a free Cloudflare Worker: it fetches
+  aisocnews.com pages only and hands them to the tool. Deploy it, then put its address in `index.html`:
+  `window.POST_RELAY = 'https://your-worker.workers.dev/?url=';`
+- **Load saved pages.** Under the link field, open "The link does not load?", save the aisocnews.com page
+  from your browser (File › Save Page As, "Webpage, HTML only") and load the file. Also save the "European
+  vendors" view to fill Europe, and the "Analyst View" for the full Maturity arc.
+
+## Editing by hand
+
+Normally only company names, logos and three hand-written pieces can be changed (see "What you can change").
+Tick **Edit all values by hand** to unlock every value on the current post, including the header label,
+title and subtitle. Use it to build a post without reading the site, or to correct what was read. Reading
+the site again replaces hand edits.
+
 ## Post types
 
 The header tabs are the categories; the thumbnails under them are the posts in that category. Click a

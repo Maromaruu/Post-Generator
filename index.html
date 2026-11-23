@@ -115,8 +115,15 @@
           </div>
           <div class="hint" id="updated" hidden></div>
           <div class="status" id="status"></div>
+          <details class="key-info">
+            <summary>The link does not load?</summary>
+            <div class="hint">Open aisocnews.com in your browser, save the page (File &rsaquo; Save Page As, &ldquo;Webpage, HTML only&rdquo;) and load the file here. To fill Europe as well, also save the &ldquo;European vendors&rdquo; view; for the full Maturity arc, the &ldquo;Analyst View&rdquo;. You can pick all the files at once.</div>
+            <button type="button" class="upload-btn" id="savedBtn" style="margin-top:8px">Load saved pages</button>
+            <input type="file" id="savedInput" accept=".html,.htm,text/html" multiple style="display:none" />
+          </details>
         </div>
         <div class="section-rule"></div>
+        <label class="remember-row" style="margin:0 0 16px"><input type="checkbox" id="editAll" /> Edit all values by hand</label>
         <div id="fields"></div>
         <input type="file" id="uploadInput" accept="image/*" style="display:none" />
         </div>
@@ -141,6 +148,9 @@
     </div>
   </div>
 </div>
+<!-- Hosting this page without server.js? Put the address of your relay here, ending in "?url=".
+     See "Hosting it online" in README.md. Leave empty when running node server.js. -->
+<script>window.POST_RELAY = '';</script>
 <script src="js/pillnav.js"></script>
 <script src="js/templates.js"></script>
 <script src="js/templates-rankings.js"></script>

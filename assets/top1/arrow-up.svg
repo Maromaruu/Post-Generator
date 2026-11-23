@@ -1,0 +1,5 @@
+<!-- The chip's arrow: Geist's own glyph, outlined by Figma (node 2869:1659). The web font has no arrow.
+     Figma exports it already turned 7 degrees with the card; the group turns it back upright. -->
+<svg width="19" height="20" viewBox="-2 -2 19 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g transform="rotate(-7 7.5 8)"><path d="M0.704963 8.37636L6.72277 3.69764L5.35948 14.7539L6.98715 14.9546L8.35534 3.85864L13.0539 9.8789L13.3256 7.67558L7.91108 0.760993L0.976642 6.17305L0.704963 8.37636Z" fill="#212225"/></g>
+</svg>

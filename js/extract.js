@@ -244,6 +244,20 @@
     return out;
   }
 
+  // What a piece of HTML is: the dashboard, its European view, the report view, or something else.
+  // Used to check a fetched page really is the site, and to sort saved pages loaded by hand.
+  function describePage(html) {
+    if (!/AI in the SOC/.test(html) || !/data-tip=|data-switch-panel=|Top \d+ Movers/.test(html)) return { kind: 'unknown', days: 0 };
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const current = (label) => txt(doc.querySelector(`nav[aria-label="${label}"] a[aria-current="page"]`));
+    const days = +(current('Reporting period').match(/\d+/) || [0])[0];
+    if (!doc.querySelector('[data-switch-panel="movers:0"]')) {
+      const full = Array.from(doc.querySelectorAll('svg[aria-label]')).some((s) => /position and balance/i.test(s.getAttribute('aria-label')));
+      return { kind: full ? 'report' : 'unknown', days };
+    }
+    return { kind: /europe/i.test(current('Vendors shown')) ? 'europe' : 'dashboard', days };
+  }
+
   function readPage(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const body = txt(doc.body);
@@ -638,5 +652,5 @@
     return 'top1';
   }
 
-  window.PostExtract = { fullDate, readArcMap, readPage, build, pick, fillTopList, fillSingle, singleFooter, makeLogoResolver, SAMPLE_TOP5 };
+  window.PostExtract = { fullDate, readArcMap, describePage, readPage, build, pick, fillTopList, fillSingle, singleFooter, makeLogoResolver, SAMPLE_TOP5 };
 })();

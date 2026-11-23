@@ -38,6 +38,7 @@
   // then how far the SVG bleeds past that box: top/bottom %, left/right % of the part's own size].
   const TOP1 = {
     hair: [1, 2, 3].map((n) => `assets/top1/hairline-${n}.svg`),
+    arrow: 'assets/top1/arrow-up.svg',
     part: (i) => `assets/top1/rocket-${String(i).padStart(2, '0')}.svg`,
     box: { x: 371, y: 105, w: 734, h: 781.342 },
     parts: [
@@ -59,7 +60,7 @@
     ],
     detail: { inset: [16.58, 7.41, 26.24, 49.38], maskAt: [-61.4, -35.078], maskSize: [335.911, 403.122] }
   };
-  const STATIC_ASSETS = [EU_BADGE, ...TOP1.hair];
+  const STATIC_ASSETS = [EU_BADGE, TOP1.arrow, ...TOP1.hair];
   for (let i = 0; i < 16; i++) STATIC_ASSETS.push(TOP1.part(i));
   for (let i = 0; i < 14; i++) STATIC_ASSETS.push(brandSrc(THEME.dark, i), brandSrc(THEME.light, i));
 
@@ -557,12 +558,15 @@
       setFont(ctx, 20, 400);
       const m = ctx.measureText('Hg'), th = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
       if (move[1]) {
-        ctx.save();
-        ctx.translate(118.55 + 14 + aw / 2, 47.91 + 28);
-        ctx.rotate(move[1] === '↑' ? -Math.PI / 2 : Math.PI / 2);
-        ctx.fillStyle = C.primary; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('→', 0, 0);
-        ctx.restore();
+        // Geist's arrow, outlined in Figma (the web font has none); turned over for a move down
+        const arrow = getImg(TOP1.arrow);
+        if (arrow) {
+          ctx.save();
+          ctx.translate(118.55 + 14 + aw / 2, 47.91 + 28);
+          if (move[1] === '↓') ctx.rotate(Math.PI);
+          ctx.drawImage(arrow, -9.5, -10, 19, 20);
+          ctx.restore();
+        }
       }
       text(ctx, label, 118.55 + 14 + aw, 47.91 + (56 - th) / 2, { size: 20, color: C.primary });
     }
