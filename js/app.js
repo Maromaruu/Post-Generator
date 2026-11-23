@@ -421,10 +421,20 @@
   }
   async function fetchPage(url) {
     const order = goodWay >= 0 ? [goodWay] : WAYS.map((_, i) => i);
+    const relayAt = RELAY ? 1 : -1;
+    let relayError = '';
     for (const way of order) {
-      try { const body = await getVia(way, url); goodWay = way; return body; } catch (e) { /* try the next way */ }
+      try { const body = await getVia(way, url); goodWay = way; return body; }
+      catch (e) { if (way === relayAt) relayError = e.message || String(e); /* try the next way */ }
     }
-    throw new Error('UNREACHABLE');
+    const err = new Error('UNREACHABLE');
+    err.relayError = relayError;
+    throw err;
+  }
+  // Why the site could not be read, in the reader's terms.
+  function unreachable(e) {
+    if (!RELAY) return UNREACHABLE;
+    return `The relay that fetches aisocnews.com for this page did not answer (${e.relayError || 'no reply'}). An ad blocker, privacy extension or network filter may be blocking it: try a private window or another network. Meanwhile, “Load saved pages” below still works.`;
   }
   const UNREACHABLE = 'This copy of the tool cannot reach aisocnews.com: the site only allows that through the tool’s own small server, which is not running here. Use “Load saved pages” below, or turn on “Edit all values by hand”.';
 
@@ -483,7 +493,7 @@
       ]);
       applyPages({ baseHtml, euHtml, reportHtml, days }, Extract.pick(url), stay);
     } catch (e) {
-      setStatus(e.message === 'UNREACHABLE' ? UNREACHABLE : (e.message || String(e)), true);
+      setStatus(e.message === 'UNREACHABLE' ? unreachable(e) : (e.message || String(e)), true);
     } finally {
       btn.disabled = false;
     }
