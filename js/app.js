@@ -488,6 +488,42 @@
       btn.disabled = false;
     }
   }
+  // Browsers save a page in different wrappers; this returns the page's HTML from any of them:
+  // plain .html (Chrome, Firefox, Edge), .mhtml "single file" (Chrome, Edge) and .webarchive (Safari).
+  function savedHtml(bytes) {
+    const utf8 = (b) => new TextDecoder('utf-8').decode(b);
+    const text = utf8(bytes);
+    // Safari web archive: a binary list that holds the page's HTML as it was served
+    if (text.startsWith('bplist')) {
+      const start = text.search(/<!DOCTYPE html|<html[\s>]/i);
+      const end = start < 0 ? -1 : text.indexOf('</html>', start);
+      return end < 0 ? '' : text.slice(start, end + 7);
+    }
+    // MHTML: a mail-style bundle; the page is the first text/html part, usually quoted-printable
+    const boundary = (text.slice(0, 4000).match(/boundary="?([^"\r\n;]+)"?/i) || [])[1];
+    if (boundary && /MIME-Version:/i.test(text.slice(0, 4000))) {
+      const part = text.split('--' + boundary).find((p) => /Content-Type:\s*text\/html/i.test(p.slice(0, 600)));
+      if (!part) return '';
+      const cut = part.search(/\r?\n\r?\n/);
+      const head = part.slice(0, cut), body = part.slice(cut).replace(/^\s+/, '');
+      if (/Content-Transfer-Encoding:\s*base64/i.test(head)) {
+        const bin = atob(body.replace(/\s+/g, ''));
+        return utf8(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+      }
+      if (/Content-Transfer-Encoding:\s*quoted-printable/i.test(head)) {
+        const src = body.replace(/=\r?\n/g, ''), out = new Uint8Array(src.length * 3);
+        let n = 0;
+        for (let i = 0; i < src.length; i++) {
+          const hex = src[i] === '=' ? src.substr(i + 1, 2) : '';
+          if (/^[0-9A-Fa-f]{2}$/.test(hex)) { out[n++] = parseInt(hex, 16); i += 2; }
+          else { const code = src.charCodeAt(i); if (code < 128) out[n++] = code; else { const enc = new TextEncoder().encode(src[i]); out.set(enc, n); n += enc.length; } }
+        }
+        return utf8(out.subarray(0, n));
+      }
+      return body;
+    }
+    return text;
+  }
   // Pages saved from the browser (File > Save Page As), for when the site cannot be read from here.
   $('savedBtn').addEventListener('click', () => { $('savedInput').value = ''; $('savedInput').click(); });
   $('savedInput').addEventListener('change', async (e) => {
@@ -496,14 +532,14 @@
     try {
       const got = { saved: true };
       for (const file of files) {
-        const html = await file.text(), what = Extract.describePage(html);
+        const html = savedHtml(new Uint8Array(await file.arrayBuffer())), what = Extract.describePage(html);
         if (what.kind === 'dashboard') { got.baseHtml = html; got.days = what.days || 30; }
         else if (what.kind === 'europe') got.euHtml = html;
         else if (what.kind === 'report') got.reportHtml = html;
       }
       if (!got.baseHtml) throw new Error(got.euHtml || got.reportHtml
         ? 'Also load the main aisocnews.com page (All vendors); the other views only add to it.'
-        : 'None of those files is a saved aisocnews.com page.');
+        : 'That file does not contain the aisocnews.com page. Save the page while it is open on aisocnews.com, then load the saved file (.html, .mhtml or .webarchive).');
       applyPages(got, current, true);
     } catch (err) {
       setStatus(err.message || String(err), true);

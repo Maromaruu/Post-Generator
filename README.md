@@ -41,7 +41,7 @@ so reading a link fails there. Three ways around it:
   aisocnews.com pages only and hands them to the tool. Deploy it, then put its address in `index.html`:
   `window.POST_RELAY = 'https://your-worker.workers.dev/?url=';`
 - **Load saved pages.** Under the link field, open "The link does not load?", save the aisocnews.com page
-  from your browser (File › Save Page As, "Webpage, HTML only") and load the file. Also save the "European
+  from your browser (File › Save Page As; `.html`, `.mhtml` and Safari's `.webarchive` all work) and load the file. Also save the "European
   vendors" view to fill Europe, and the "Analyst View" for the full Maturity arc.
 
 ## Editing by hand
